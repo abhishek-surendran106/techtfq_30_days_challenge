@@ -1,0 +1,79 @@
+-- QUERY #5 PROBLEM STATEMENT: Using the given Salary, Income and Deduction tables, 
+-- first write an sql query to populate the Emp_Transaction table as shown below and then generate a salary report as shown.
+-- EXPECTED OUTPUT - EMP_TRANSACTION				
+-- EMP_ID| EMP_NAME| TRNS_TYPE| AMOUNT
+-- 1	Rohan	Insurance	250
+-- 2	Alex	Insurance	300
+-- 3	Maryam	Insurance	350
+-- 1	Rohan	House	200
+-- 2	Alex	House	240
+-- 3	Maryam	House	280
+-- 1	Rohan	Basic	5000
+-- 2	Alex	Basic	6000
+-- 3	Maryam	Basic	7000
+-- 1	Rohan	Health	300
+-- 2	Alex	Health	360
+-- 3	Maryam	Health	420
+-- 1	Rohan	Allowance	200
+-- 2	Alex	Allowance	240
+-- 3	Maryam	Allowance	280
+-- 1	Rohan	Others	300
+-- 2	Alex	Others	360
+-- 3	Maryam	Others	420
+
+-- EXPECTED OUTPUT - SALARY REPORT									
+-- EMPLOYEE	BASIC	ALLOWANCE	OTHERS	GROSS	INSURANCE	HEALTH	HOUSE	TOTAL_DEDUCTIONS	NET_PAY
+-- Alex	6000	240	360	6600	300	360	240	900	5700
+-- Maryam	7000	280	420	7700	350	420	280	1050	6650
+-- Rohan	5000	200	300	5500	250	300	200	750	4750
+
+with emp_trns as
+		(select s.ID as EMP_ID, s.EMP_NAME, i.INCOME as TRNS_TYPE, 
+		case
+		when i.INCOME = "Basic" then round(s.BASE_SALARY * 1) 
+		when i.INCOME = "Allowance" then round(s.BASE_SALARY * 0.04)
+		when i.INCOME = "Others" then round(s.BASE_SALARY * 0.06)
+		end as AMOUNT 
+		from salary_day_5 s
+		cross join income_day_5 i
+		UNION
+		SELECT S.ID AS EMP_ID, s.EMP_NAME, d.DEDUCTION as TRNS_TYPE,
+		case
+		when d.DEDUCTION = "Insurance" then round(s.BASE_SALARY * 0.05)
+		when d.DEDUCTION = "Health" then round(s.BASE_SALARY * 0.06)
+		when d.DEDUCTION = "House" then round(s.BASE_SALARY * 0.04)
+		end as AMOUNT
+		from salary_day_5 s
+		cross join deduction_day_5 d),
+BASIC AS
+(SELECT EMP_NAME, AMOUNT AS BASIC FROM
+EMP_TRNS
+WHERE TRNS_TYPE = "BASIC"
+GROUP BY EMP_NAME, AMOUNT),
+ALLOWANCE AS
+(SELECT B.*, AMOUNT AS ALLOWANCE FROM
+EMP_TRNS E JOIN BASIC B ON E.EMP_NAME = B.EMP_NAME
+WHERE E.TRNS_TYPE = "ALLOWANCE"),
+OTHERS AS
+(SELECT A.*, AMOUNT AS OTHERS FROM
+EMP_TRNS E JOIN ALLOWANCE A ON E.EMP_NAME = A.EMP_NAME
+WHERE E.TRNS_TYPE = "OTHERS"),
+GROSS AS
+(SELECT O.*, BASIC+ALLOWANCE+OTHERS AS GROSS FROM OTHERS O),
+INSURANCE AS
+(SELECT G.*, AMOUNT AS INSURANCE FROM GROSS G JOIN EMP_TRNS E ON G.EMP_NAME = E.EMP_NAME
+WHERE E.TRNS_TYPE = "INSURANCE"),
+HEALTH AS
+(SELECT I.*, AMOUNT AS HEALTH FROM INSURANCE I
+JOIN EMP_TRNS E ON I.EMP_NAME = E.EMP_NAME
+WHERE E.TRNS_TYPE = "HEALTH"),
+HOUSE AS
+(SELECT H.*, AMOUNT AS HOUSE FROM HEALTH H
+JOIN EMP_TRNS E ON H.EMP_NAME = E.EMP_NAME
+WHERE E.TRNS_TYPE = "HOUSE"),
+DEDUCTIONS AS
+(SELECT H.*, INSURANCE+HEALTH+HOUSE AS TOTAL_DEDUCTIONS FROM HOUSE H),
+NET AS
+(SELECT D.*, GROSS-TOTAL_DEDUCTIONS AS NET_PAY FROM DEDUCTIONS D)
+SELECT EMP_NAME AS EMPLOYEE, BASIC, ALLOWANCE, OTHERS, GROSS, INSURANCE, HEALTH, HOUSE, TOTAL_DEDUCTIONS, NET_PAY FROM NET
+ORDER BY 1;
